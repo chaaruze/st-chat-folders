@@ -96,14 +96,19 @@
     opacity: 1;
 }
 
-/* Chevron toggle */
+/* Chevron toggle - now using Font Awesome */
 .tmc_toggle {
-    font-family: system-ui, sans-serif;
-    font-size: 10px;
-    width: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
     color: var(--SmartThemeBodyColor);
     opacity: 0.5;
     transition: transform 0.15s;
+}
+
+.tmc_toggle i {
+    font-size: 10px;
 }
 
 .tmc_section[data-collapsed="true"] .tmc_toggle {
@@ -111,8 +116,11 @@
 }
 
 .tmc_icon {
+    display: flex;
+    align-items: center;
     font-size: 14px;
     opacity: 0.8;
+    color: var(--SmartThemeBodyColor);
 }
 
 .tmc_name {
@@ -317,4 +325,81 @@
 #tmc_proxy_root::-webkit-scrollbar-thumb:hover {
     background: var(--SmartThemeBodyColor);
     opacity: 0.5;
+}
+
+/* ========== MOBILE RESPONSIVE ========== */
+@media screen and (max-width: 768px) {
+
+    /* Make proxy root take more height on mobile */
+    #tmc_proxy_root {
+        max-height: 65vh !important;
+        padding: 8px !important;
+    }
+
+    /* Folder headers - larger touch targets */
+    .tmc_header {
+        padding: 10px 12px !important;
+        font-size: 14px !important;
+    }
+
+    /* Always show action buttons on mobile (no hover) */
+    .tmc_header_right {
+        opacity: 1 !important;
+    }
+
+    /* Less indent on mobile */
+    .tmc_content {
+        padding-left: 12px !important;
+    }
+
+    /* Chat blocks - better spacing and touch */
+    .tmc_proxy_block.select_chat_block {
+        padding: 10px 12px !important;
+        margin: 0 0 8px 0 !important;
+    }
+
+    /* Ensure action buttons don't get cut off */
+    .tmc_proxy_block.select_chat_block .select_chat_block_buttons,
+    .tmc_proxy_block.select_chat_block .select_chat_block_action {
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+
+    /* Larger icons for touch */
+    .tmc_btn {
+        padding: 6px !important;
+        font-size: 14px !important;
+    }
+
+    .tmc_icon i,
+    .tmc_toggle i {
+        font-size: 14px !important;
+    }
+
+    /* Context menu - wider on mobile */
+    .tmc_ctx {
+        min-width: 200px !important;
+        max-width: 280px !important;
+    }
+
+    .tmc_ctx_item {
+        padding: 12px 16px !important;
+        font-size: 14px !important;
+    }
+}
+
+/* Extra small screens (phones in portrait) */
+@media screen and (max-width: 480px) {
+    #tmc_proxy_root {
+        max-height: 70vh !important;
+    }
+
+    .tmc_content {
+        padding-left: 8px !important;
+    }
+
+    /* Stack date info below filename on very small screens */
+    .tmc_proxy_block.select_chat_block .select_chat_info {
+        font-size: 11px !important;
+    }
 }

@@ -303,8 +303,8 @@
         header.className = 'tmc_header';
         header.innerHTML = `
             <div class="tmc_header_left">
-                <span class="tmc_toggle">▼</span>
-                <span class="tmc_icon">📁</span>
+                <span class="tmc_toggle"><i class="fa-solid fa-chevron-down"></i></span>
+                <span class="tmc_icon"><i class="fa-solid fa-folder"></i></span>
                 <span class="tmc_name">${escapeHtml(folder.name)}</span>
                 <span class="tmc_count">0</span>
             </div>
@@ -352,7 +352,7 @@
         header.className = 'tmc_header';
         header.innerHTML = `
             <div class="tmc_header_left">
-                <span class="tmc_icon">💬</span>
+                <span class="tmc_icon"><i class="fa-regular fa-comments"></i></span>
                 <span class="tmc_name">Your chats</span>
                 <span class="tmc_count">0</span>
             </div>
