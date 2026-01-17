@@ -9,6 +9,32 @@
     display: none !important;
 }
 
+/* ========== NEW FOLDER BUTTON (Header) ========== */
+.tmc_add_btn {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 5px 10px !important;
+    margin: 0 5px !important;
+    background: var(--SmartThemeBlurTintColor) !important;
+    border: 1px solid var(--SmartThemeBorderColor) !important;
+    border-radius: 5px !important;
+    color: var(--SmartThemeBodyColor) !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+    transition: background 0.15s, border-color 0.15s !important;
+    white-space: nowrap !important;
+}
+
+.tmc_add_btn:hover {
+    background: var(--SmartThemeQuoteColor) !important;
+    border-color: var(--SmartThemeQuoteColor) !important;
+}
+
+.tmc_add_btn i {
+    font-size: 12px !important;
+}
+
 /* Proxy Root - Scrollable container */
 #tmc_proxy_root {
     display: flex;
