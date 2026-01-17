@@ -190,29 +190,34 @@
 
             if (!popup) return;
 
-            // Allow targeting wrapper even if hidden by our CSS
-            const nativeWrapper = popup.querySelector('.select_chat_block_wrapper');
-            if (!nativeWrapper) return;
-
             // 1. Gather all Native Blocks
-            // We select ALL blocks, excluding our own proxy blocks if they somehow got mixed in (shouldn't happen with separate root)
-            const nativeBlocks = Array.from(nativeWrapper.querySelectorAll('.select_chat_block:not(.tmc_proxy_block)'));
+            // CRITICAL FIX: SillyTavern uses multiple .select_chat_block_wrapper elements (one per chat).
+            // We must query the POPUP root, not a specific wrapper.
+            const nativeBlocks = Array.from(popup.querySelectorAll('.select_chat_block:not(.tmc_proxy_block)'));
 
             // 2. Extract Data
             const chatData = nativeBlocks.map(block => ({
                 element: block,
                 fileName: block.getAttribute('file_name') || block.title || block.innerText.split('\n')[0].trim(),
                 html: block.innerHTML
-            })).filter(d => d.fileName); // Skip if no filename found
+            })).filter(d => d.fileName);
 
             // 3. Setup Proxy Root
             let proxyRoot = popup.querySelector('#tmc_proxy_root');
             if (!proxyRoot) {
                 proxyRoot = document.createElement('div');
                 proxyRoot.id = 'tmc_proxy_root';
-                // Insert BEFORE the native wrapper
-                if (nativeWrapper.parentNode) {
-                    nativeWrapper.parentNode.insertBefore(proxyRoot, nativeWrapper);
+
+                // CRITICAL FIX: Insert at the top of the container that holds the wrappers.
+                // We find the first wrapper to identify the parent.
+                const firstWrapper = popup.querySelector('.select_chat_block_wrapper');
+                const container = firstWrapper ? firstWrapper.parentNode : popup.querySelector('.shadow_select_chat_popup_body') || popup;
+
+                if (container) {
+                    // Try to put it after the search bar if possible?
+                    // Search bar is usually in header or separate. 
+                    // Wrappers are in body.
+                    container.insertBefore(proxyRoot, container.firstChild);
                 }
             }
 
