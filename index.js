@@ -376,14 +376,29 @@
         el.title = chatData.fileName;
         el.setAttribute('file_name', chatData.fileName);
 
+        // FIX: Move pencil icon to the right side with other action buttons
+        const pencilBtn = el.querySelector('.renameChatButton');
+        const actionContainer = el.querySelector('.flex-container.gap10px') ||
+            el.querySelector('[class*="action"]') ||
+            el.querySelector('.select_chat_info')?.parentElement;
+        if (pencilBtn && actionContainer) {
+            // Move pencil to the action container (right side)
+            actionContainer.insertBefore(pencilBtn, actionContainer.firstChild);
+        }
+
         // Intercept main click (not on buttons)
         el.addEventListener('click', (e) => {
             // Don't intercept if clicking on action buttons
-            if (e.target.closest('.select_chat_block_action, .mes_edit, .mes_delete, .mes_export, button, a')) {
-                // Let the native button handle it by clicking the hidden original
-                const originalBtn = chatData.element.querySelector(e.target.closest('[class]')?.className.split(' ')[0]);
-                if (originalBtn) originalBtn.click();
-                return;
+            if (e.target.closest('.renameChatButton, .select_chat_block_action, .mes_edit, .mes_delete, .mes_export, button, a, [class*="export"], [class*="delete"], [class*="download"]')) {
+                // Find corresponding button in hidden original and click it
+                const clickedClass = e.target.closest('[class]')?.className;
+                if (clickedClass) {
+                    const originalBtn = chatData.element.querySelector('.' + clickedClass.split(' ')[0]);
+                    if (originalBtn) {
+                        originalBtn.click();
+                        return;
+                    }
+                }
             }
             // Otherwise load the chat
             chatData.element.click();
@@ -401,22 +416,30 @@
     function injectAddButton(popup) {
         if (popup.querySelector('.tmc_add_btn')) return;
 
-        const headerRow = popup.querySelector('.shadow_select_chat_popup_header') || popup.querySelector('h3');
-        if (!headerRow) return;
+        // FIX: Use correct selector - native SillyTavern uses [name="selectChatPopupHeader"]
+        const headerRow = popup.querySelector('[name="selectChatPopupHeader"]') ||
+            popup.querySelector('.flex-container.alignitemscenter') ||
+            popup.querySelector('h3');
+        if (!headerRow) {
+            console.warn('[TMC] Could not find header row for New Folder button');
+            return;
+        }
 
         const btn = document.createElement('div');
         btn.className = 'tmc_add_btn menu_button';
-        btn.innerHTML = '<i class="fa-solid fa-folder-plus"></i>';
-        btn.title = 'New Folder';
+        btn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> New Folder';
+        btn.title = 'Create New Folder';
+        btn.style.cssText = 'display: flex; align-items: center; gap: 4px; cursor: pointer;';
         btn.onclick = (e) => {
             e.stopPropagation();
             const n = prompt('New Folder Name:');
             if (n) createFolder(n);
         };
 
-        const closeBtn = headerRow.querySelector('#select_chat_cross');
-        if (closeBtn) {
-            headerRow.insertBefore(btn, closeBtn);
+        // Insert after "Import Chat" button or at the end
+        const importBtn = headerRow.querySelector('#chat_import_button');
+        if (importBtn && importBtn.nextSibling) {
+            headerRow.insertBefore(btn, importBtn.nextSibling);
         } else {
             headerRow.appendChild(btn);
         }
