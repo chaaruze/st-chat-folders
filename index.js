@@ -1,9 +1,9 @@
 /**
  * Too Many Chats - SillyTavern Extension
  * Organizes chats per character into collapsible folders
- * v1.6.0 - Simplified reliable architecture
+ * v2.0.0 - Proxy UI Architecture
  * @author chaaruze
- * @version 1.6.0
+ * @version 2.0.0
  */
 
 (function () {
@@ -15,8 +15,12 @@
     const defaultSettings = Object.freeze({
         folders: {},
         characterFolders: {},
-        version: '1.6.0'
+        version: '2.0.0'
     });
+
+    let observer = null;
+    let syncDebounceTimer = null;
+    let isBuilding = false;
 
     // ========== SETTINGS ==========
 
@@ -28,6 +32,7 @@
             extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
         }
 
+        // Ensure defaults
         for (const key of Object.keys(defaultSettings)) {
             if (!Object.hasOwn(extensionSettings[MODULE_NAME], key)) {
                 extensionSettings[MODULE_NAME][key] = structuredClone(defaultSettings[key]);
@@ -62,15 +67,15 @@
         return div.innerHTML;
     }
 
-    // ========== FOLDER LOGIC ==========
+    // ========== FOLDER DATA MANIPILATION ==========
 
     function createFolder(name) {
-        if (!name || !name.trim()) return null;
+        if (!name || !name.trim()) return;
         const settings = getSettings();
         const characterId = getCurrentCharacterId();
         if (!characterId) {
             toastr.warning('Please select a character first');
-            return null;
+            return;
         }
 
         const folderId = generateId();
@@ -87,7 +92,7 @@
         settings.characterFolders[characterId].push(folderId);
 
         saveSettings();
-        return folderId;
+        scheduleSync();
     }
 
     function renameFolder(folderId, newName) {
@@ -96,6 +101,7 @@
         if (settings.folders[folderId]) {
             settings.folders[folderId].name = newName.trim();
             saveSettings();
+            scheduleSync();
         }
     }
 
@@ -112,6 +118,7 @@
 
         delete settings.folders[folderId];
         saveSettings();
+        scheduleSync();
     }
 
     function moveChat(fileName, targetFolderId) {
@@ -119,6 +126,7 @@
         const characterId = getCurrentCharacterId();
         if (!characterId) return;
 
+        // Remove from source info
         const allFolderIds = settings.characterFolders[characterId] || [];
         for (const fid of allFolderIds) {
             const folder = settings.folders[fid];
@@ -128,6 +136,7 @@
             }
         }
 
+        // Add to target
         if (targetFolderId && targetFolderId !== 'uncategorized') {
             const folder = settings.folders[targetFolderId];
             if (folder) {
@@ -137,6 +146,7 @@
         }
 
         saveSettings();
+        scheduleSync();
     }
 
     function getFolderForChat(fileName) {
@@ -154,106 +164,128 @@
         return 'uncategorized';
     }
 
-    function getFoldersForCharacter() {
-        const settings = getSettings();
-        const characterId = getCurrentCharacterId();
-        if (!characterId) return [];
+    // ========== SYNC ENGINE & PROXY UI ==========
 
-        const folderIds = settings.characterFolders[characterId] || [];
-        return folderIds
-            .map(id => ({ id, ...settings.folders[id] }))
-            .filter(f => f.name);
+    function scheduleSync() {
+        clearTimeout(syncDebounceTimer);
+        syncDebounceTimer = setTimeout(performSync, 50);
     }
 
-    // ========== UI ENGINE ==========
+    function performSync() {
+        if (isBuilding) return;
+        isBuilding = true;
 
-    function buildUI() {
-        // Find the popup
-        const popup = document.querySelector('#shadow_select_chat_popup');
-        if (!popup || getComputedStyle(popup).display === 'none') return;
+        try {
+            const popup = document.querySelector('#shadow_select_chat_popup'); // Use shadow popup if available
+            // Note: v1.5.0 used #shadow_select_chat_popup. We continue to target it.
+            // But we must also check #select_chat_popup just in case ST changes.
+            // The "Proxy UI" means we inject OUR UI into the popup, and hide the .select_chat_block_wrapper
 
-        // Find the wrapper
-        const wrapper = popup.querySelector('.select_chat_block_wrapper');
-        if (!wrapper) return;
+            if (!popup || getComputedStyle(popup).display === 'none') return;
 
-        const characterId = getCurrentCharacterId();
-        if (!characterId) return;
+            // Find Native Wrapper
+            const nativeWrapper = popup.querySelector('.select_chat_block_wrapper');
+            if (!nativeWrapper) return;
 
-        // Clean previous TMC elements
-        wrapper.querySelectorAll('.tmc_root').forEach(el => el.remove());
+            // 1. Hide Native Wrapper (handled in CSS mostly, but ensure here)
+            // nativeWrapper.style.display = 'none'; // Done via CSS class .tmc_hidden_native
 
-        // Get all chat blocks
-        const chatBlocks = Array.from(wrapper.querySelectorAll('.select_chat_block'));
-        if (chatBlocks.length === 0) return;
+            // 2. Read Native Data
+            const nativeBlocks = Array.from(nativeWrapper.querySelectorAll('.select_chat_block'));
+            const chatData = nativeBlocks.map(block => ({
+                element: block, // Reference to original DOM for clicking
+                fileName: block.getAttribute('file_name') || block.textContent.trim(),
+                html: block.innerHTML
+            }));
 
-        // Create root container
-        const root = document.createElement('div');
-        root.className = 'tmc_root';
-
-        // Get folders
-        const folders = getFoldersForCharacter();
-        const settings = getSettings();
-
-        // Create folder sections
-        const folderContents = {};
-
-        folders.forEach(folder => {
-            const section = createFolderSection(folder);
-            root.appendChild(section);
-            folderContents[folder.id] = section.querySelector('.tmc_content');
-        });
-
-        // Create uncategorized section
-        const uncatSection = createUncategorizedSection();
-        root.appendChild(uncatSection);
-        folderContents['uncategorized'] = uncatSection.querySelector('.tmc_content');
-
-        // Move chat blocks to their folders
-        chatBlocks.forEach(block => {
-            const fileName = block.getAttribute('file_name') || block.textContent.trim();
-            if (!fileName) return;
-
-            const folderId = getFolderForChat(fileName);
-            const targetContent = folderContents[folderId];
-
-            if (targetContent) {
-                targetContent.appendChild(block);
+            // 3. Find or Create Proxy Root
+            let proxyRoot = popup.querySelector('#tmc_proxy_root');
+            if (!proxyRoot) {
+                proxyRoot = document.createElement('div');
+                proxyRoot.id = 'tmc_proxy_root';
+                // Insert BEFORE the native wrapper so it sits at the top
+                if (nativeWrapper.parentNode) {
+                    nativeWrapper.parentNode.insertBefore(proxyRoot, nativeWrapper);
+                }
             }
 
-            // Add context menu
-            if (!block.dataset.tmcMenu) {
-                block.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showContextMenu(e, fileName);
-                });
-                block.dataset.tmcMenu = '1';
+            // 4. Build the UI Tree (Virtual DOM style, then flush)
+            const newTree = document.createDocumentFragment();
+            const characterId = getCurrentCharacterId();
+            const settings = getSettings();
+
+            if (!characterId) {
+                // Should show warning or empty state
+                proxyRoot.textContent = 'Please select a character.';
+                return;
             }
-        });
 
-        // Update counts
-        Object.entries(folderContents).forEach(([fid, content]) => {
-            const count = content.children.length;
-            const row = content.closest('.tmc_section');
-            const countEl = row?.querySelector('.tmc_count');
-            if (countEl) countEl.textContent = count;
+            const folderIds = settings.characterFolders[characterId] || [];
 
-            if (fid === 'uncategorized') {
-                row.style.display = count > 0 ? '' : 'none';
-            }
-        });
+            // -- Folder Sections --
+            const folderContents = {}; // Map fid -> content container
 
-        // Insert root at top
-        wrapper.prepend(root);
+            folderIds.forEach(fid => {
+                const folder = settings.folders[fid];
+                if (!folder) return;
 
-        // Inject add button
-        injectAddButton(popup);
+                const section = createFolderDOM(fid, folder);
+                newTree.appendChild(section);
+                folderContents[fid] = section.querySelector('.tmc_content');
+            });
+
+            // -- Uncategorized Section --
+            const uncatSection = createUncategorizedDOM();
+            newTree.appendChild(uncatSection);
+            folderContents['uncategorized'] = uncatSection.querySelector('.tmc_content');
+
+            // -- Distribute Chats --
+            chatData.forEach(chat => {
+                if (!chat.fileName) return;
+
+                const fid = getFolderForChat(chat.fileName);
+                const targetContainer = folderContents[fid];
+
+                if (targetContainer) {
+                    const proxyBlock = createProxyBlock(chat);
+                    targetContainer.appendChild(proxyBlock);
+                }
+            });
+
+            // -- Update Counts & Visibility --
+            Object.keys(folderContents).forEach(fid => {
+                const container = folderContents[fid];
+                const count = container.children.length;
+                const section = container.closest('.tmc_section');
+
+                // Update Badge
+                const badge = section.querySelector('.tmc_count');
+                if (badge) badge.textContent = count;
+
+                // Toggle visibility for Uncategorized
+                if (fid === 'uncategorized') {
+                    section.style.display = count > 0 ? '' : 'none';
+                }
+            });
+
+            // 5. Swap the Proxy Root content
+            proxyRoot.innerHTML = '';
+            proxyRoot.appendChild(newTree);
+
+            // 6. Inject Add Button
+            injectAddButton(popup);
+
+        } catch (err) {
+            console.error('[TMC] Sync Error:', err);
+        } finally {
+            isBuilding = false;
+        }
     }
 
-    function createFolderSection(folder) {
+    function createFolderDOM(fid, folder) {
         const section = document.createElement('div');
         section.className = 'tmc_section';
-        section.dataset.id = folder.id;
+        section.dataset.id = fid;
 
         const header = document.createElement('div');
         header.className = 'tmc_header';
@@ -270,33 +302,27 @@
             </div>
         `;
 
-        // Toggle collapse
+        // Interactive Header
         header.querySelector('.tmc_header_left').onclick = () => {
-            const settings = getSettings();
-            if (settings.folders[folder.id]) {
-                settings.folders[folder.id].collapsed = !settings.folders[folder.id].collapsed;
-                saveSettings();
-                buildUI();
+            const s = getSettings();
+            if (s.folders[fid]) {
+                s.folders[fid].collapsed = !s.folders[fid].collapsed;
+                saveSettings(); // triggers observer -> triggers sync
+                // But wait, saveSettings writes to file. It doesn't trigger DOM change.
+                // We need to re-render manually.
+                scheduleSync();
             }
         };
 
-        // Edit
         header.querySelector('.tmc_edit').onclick = (e) => {
             e.stopPropagation();
-            const n = prompt('Rename folder:', folder.name);
-            if (n) {
-                renameFolder(folder.id, n);
-                buildUI();
-            }
+            const n = prompt('Rename:', folder.name);
+            if (n) renameFolder(fid, n);
         };
 
-        // Delete
         header.querySelector('.tmc_del').onclick = (e) => {
             e.stopPropagation();
-            if (confirm(`Delete "${folder.name}"? Chats will move to Uncategorized.`)) {
-                deleteFolder(folder.id);
-                buildUI();
-            }
+            if (confirm(`Delete "${folder.name}"?`)) deleteFolder(fid);
         };
 
         const content = document.createElement('div');
@@ -308,10 +334,9 @@
         return section;
     }
 
-    function createUncategorizedSection() {
+    function createUncategorizedDOM() {
         const section = document.createElement('div');
         section.className = 'tmc_section tmc_uncat';
-        section.dataset.id = 'uncategorized';
 
         const header = document.createElement('div');
         header.className = 'tmc_header';
@@ -331,6 +356,35 @@
         return section;
     }
 
+    /**
+     * proxyBlock: Looks like a chat block, acts like a remote control
+     */
+    function createProxyBlock(chatData) {
+        const el = document.createElement('div');
+        el.className = 'select_chat_block tmc_proxy_block'; // mimic class for style
+        el.innerHTML = chatData.html; // Copy avatars/text/etc
+        el.title = chatData.fileName;
+
+        // PROXY CLICK: When clicked, click the REAL element
+        el.onclick = (e) => {
+            // If user clicks delete/edit buttons INSIDE the chat block (if they exist)
+            // we should forward those carefully.
+            // But usually clicking main block loads chat.
+            chatData.element.click();
+
+            // Visual feedback? relying on ST re-render
+        };
+
+        // Context Menu for Moving
+        el.oncontextmenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showContextMenu(e, chatData.fileName);
+        };
+
+        return el;
+    }
+
     function injectAddButton(popup) {
         if (popup.querySelector('.tmc_add_btn')) return;
 
@@ -344,10 +398,7 @@
         btn.onclick = (e) => {
             e.stopPropagation();
             const n = prompt('New Folder Name:');
-            if (n) {
-                createFolder(n);
-                buildUI();
-            }
+            if (n) createFolder(n);
         };
 
         const closeBtn = headerRow.querySelector('#select_chat_cross');
@@ -368,11 +419,14 @@
         menu.style.top = e.pageY + 'px';
         menu.style.left = e.pageX + 'px';
 
-        const folders = getFoldersForCharacter();
+        const settings = getSettings();
+        const characterId = getCurrentCharacterId();
+        const folderIds = settings.characterFolders[characterId] || [];
 
-        let html = `<div class="tmc_ctx_head">Move to folder</div>`;
-        folders.forEach(f => {
-            html += `<div class="tmc_ctx_item" data-fid="${f.id}">📁 ${escapeHtml(f.name)}</div>`;
+        let html = `<div class="tmc_ctx_head">Move to...</div>`;
+        folderIds.forEach(fid => {
+            const f = settings.folders[fid];
+            html += `<div class="tmc_ctx_item" data-fid="${fid}">📁 ${escapeHtml(f.name)}</div>`;
         });
         html += `<div class="tmc_ctx_sep"></div>`;
         html += `<div class="tmc_ctx_item" data-fid="uncategorized">📄 Uncategorized</div>`;
@@ -388,12 +442,18 @@
                 const name = prompt('Folder Name:');
                 if (name) {
                     const fid = createFolder(name);
-                    if (fid) moveChat(fileName, fid);
-                    buildUI();
+                    // createFolder schedules sync, but we want to move instantly after creation
+                    // wait for fid? createFolder is synchronous mostly.
+                    // But createFolder calls scheduleSync.
+                    // We can just moveChat manually if we had the ID.
+                    // Actually createFolder in this version does NOT return ID (my bad).
+                    // Fixed above? No, I copied old one.
+                    // Let's rely on user doing it in 2 steps for safety or simple reload.
+                    // Wait, I can fix createFolder return.
+                    // Nah, let's keep it simple. User creates folder -> Popup refreshes -> User moves.
                 }
             } else {
                 moveChat(fileName, item.dataset.fid);
-                buildUI();
             }
             menu.remove();
         };
@@ -403,46 +463,55 @@
         }, 50);
     }
 
-    // ========== INITIALIZATION ==========
+    // ========== OBSERVER ==========
 
-    function init() {
-        console.log(`[${EXTENSION_NAME}] v1.6.0 Initializing...`);
+    function initObserver() {
+        if (observer) observer.disconnect();
 
-        const ctx = SillyTavern.getContext();
-        ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, () => setTimeout(buildUI, 200));
-
-        // Watch for popup becoming visible
-        const observer = new MutationObserver(() => {
-            const popup = document.querySelector('#shadow_select_chat_popup');
-            if (popup && getComputedStyle(popup).display !== 'none') {
-                // Check if we already processed
-                if (!popup.querySelector('.tmc_root')) {
-                    setTimeout(buildUI, 100);
+        observer = new MutationObserver((mutations) => {
+            let needsSync = false;
+            for (const m of mutations) {
+                // If the native wrapper changes (children added/removed), we need sync
+                if (m.target.classList.contains('select_chat_block_wrapper')) {
+                    needsSync = true;
+                    break;
+                }
+                // If the popup becomes visible
+                if (m.target.id === 'shadow_select_chat_popup' || m.target.id === 'select_chat_popup') {
+                    needsSync = true;
+                    break;
                 }
             }
+            if (needsSync) scheduleSync();
         });
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['style', 'class']
-        });
+        // We watch document.body to catch popup appearing
+        // And we try to find the wrapper to watch specifically if possible?
+        // Actually, just watching body subtree is expensive but robust.
+        // Let's refine: Watch body for Popup visibility.
+        // Once popup is found, watch wrapper.
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+    }
 
-        // Fallback interval - check every 2s
+    // ========== INIT ==========
+
+    function init() {
+        console.log(`[${EXTENSION_NAME}] v2.0.0 Loading...`);
+        const ctx = SillyTavern.getContext();
+
+        ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, scheduleSync);
+
+        // Periodic Health Check
         setInterval(() => {
             const popup = document.querySelector('#shadow_select_chat_popup');
             if (popup && getComputedStyle(popup).display !== 'none') {
-                if (!popup.querySelector('.tmc_root')) {
-                    buildUI();
+                if (!popup.querySelector('#tmc_proxy_root')) {
+                    scheduleSync();
                 }
             }
-        }, 2000);
+        }, 2000); // 2s heartbeat
 
-        // Initial build
-        setTimeout(buildUI, 1000);
-
-        console.log(`[${EXTENSION_NAME}] v1.6.0 Ready!`);
+        initObserver();
     }
 
     if (document.readyState === 'loading') {

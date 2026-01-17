@@ -1,15 +1,27 @@
 /**
- * Too Many Chats - Styles v1.6.0
+ * Too Many Chats - Styles v2.0.0
  * Uses SillyTavern's native CSS variables
  */
 
-/* Root Container */
-.tmc_root {
+/* 
+   CRITICAL: Hide the native chat list wrapper.
+   We use !important to ensure we override ST's own styles.
+   We keep it in the DOM so we can read from it, but user sees our Proxy UI.
+*/
+#select_chat_popup .select_chat_block_wrapper,
+#shadow_select_chat_popup .select_chat_block_wrapper {
+    display: none !important;
+}
+
+/* Our Proxy Root - Ensure it is visible */
+#tmc_proxy_root {
     display: flex;
     flex-direction: column;
     gap: 4px;
     width: 100%;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
+    min-height: 50px;
+    /* Ensure drop target area exists */
 }
 
 /* Section (Folder Row) */
@@ -18,6 +30,8 @@
     background: var(--SmartThemeBlurTintColor);
     border-radius: 8px;
     overflow: hidden;
+    margin-bottom: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* Header */
@@ -48,7 +62,7 @@
 .tmc_header_right {
     display: flex;
     gap: 6px;
-    opacity: 0;
+    opacity: 0.4;
     transition: opacity 0.15s;
 }
 
@@ -59,13 +73,13 @@
 .tmc_toggle {
     font-family: monospace;
     font-size: 10px;
-    width: 12px;
+    width: 14px;
     color: var(--SmartThemeBodyColor);
     opacity: 0.7;
 }
 
 .tmc_icon {
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .tmc_name {
@@ -84,7 +98,7 @@
 
 .tmc_btn {
     padding: 4px 6px;
-    font-size: 11px;
+    font-size: 12px;
     border-radius: 4px;
     cursor: pointer;
     color: var(--SmartThemeBodyColor);
@@ -106,7 +120,11 @@
     background: rgba(0, 0, 0, 0.1);
 }
 
-.tmc_content .select_chat_block {
+/* Proxy Chat Block Styling (Mimic native ST block) */
+.tmc_proxy_block.select_chat_block {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
     margin: 0 !important;
     width: 100% !important;
     border: none !important;
@@ -114,13 +132,16 @@
     border-radius: 0 !important;
     padding: 10px 14px !important;
     background: transparent !important;
+    cursor: pointer !important;
+    transition: background 0.15s !important;
+    min-height: 48px;
 }
 
-.tmc_content .select_chat_block:hover {
+.tmc_proxy_block.select_chat_block:hover {
     background: var(--SmartThemeUpperBarColor) !important;
 }
 
-.tmc_content .select_chat_block:last-child {
+.tmc_proxy_block.select_chat_block:last-child {
     border-bottom: none !important;
 }
 
@@ -128,7 +149,8 @@
 .tmc_uncat {
     border: none;
     background: transparent;
-    margin-top: 8px;
+    box-shadow: none;
+    margin-top: 12px;
 }
 
 .tmc_uncat .tmc_header {
@@ -146,7 +168,7 @@
     position: fixed;
     background: var(--SmartThemeBlurTintColor);
     border: 1px solid var(--SmartThemeBorderColor);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     z-index: 20002;
     min-width: 180px;
     border-radius: 8px;
@@ -182,13 +204,14 @@
 .tmc_ctx_sep {
     height: 1px;
     background: var(--SmartThemeBorderColor);
+    margin: 4px 0;
 }
 
 .tmc_new {
     color: #4cd137;
 }
 
-/* Add Button */
+/* Add Button in Popup Header */
 .tmc_add_btn {
     font-size: 16px;
     cursor: pointer;
