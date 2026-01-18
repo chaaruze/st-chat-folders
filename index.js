@@ -47,7 +47,7 @@
     // ========== HELPERS ==========
 
     function generateId() {
-        return 'folder_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        return 'folder_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
     }
 
     function getCurrentCharacterId() {
@@ -485,7 +485,7 @@
         });
         html += '<div class="tmc_ctx_sep"></div>';
         html += '<div class="tmc_ctx_item" data-fid="uncategorized">💬 Your chats</div>';
-        // New Folder button is now in the header, removed from here
+
 
         menu.innerHTML = html;
         document.body.appendChild(menu);
@@ -538,7 +538,7 @@
     // ========== INIT ==========
 
     function init() {
-        console.log(`[${EXTENSION_NAME}] v2.1.0 Loading...`);
+        console.log(`[${EXTENSION_NAME}] v1.0.0 Loading...`);
         const ctx = SillyTavern.getContext();
 
         ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, scheduleSync);

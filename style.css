@@ -302,11 +302,6 @@
     margin: 4px 0;
 }
 
-.tmc_new {
-    color: #4cd137;
-}
-
-/* .tmc_add_btn styles consolidated at top of file (lines 13-36) */
 
 /* ========== SCROLLBAR ========== */
 #tmc_proxy_root::-webkit-scrollbar {
