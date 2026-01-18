@@ -326,7 +326,7 @@
 @media screen and (max-width: 768px) {
 
     /* POPUP FULLSCREEN - Override SillyTavern core (inset/margin) and themes (MoonlitEchoes) */
-    #select_chat_popup {
+    #select_chat_popup[style]:not([style*="display: none"]) {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
@@ -350,7 +350,7 @@
     }
 
     /* Shadow backdrop - also needs to be fullscreen */
-    #shadow_select_chat_popup {
+    #shadow_select_chat_popup[style]:not([style*="display: none"]) {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
@@ -361,10 +361,9 @@
         margin: 0 !important;
     }
 
-    /* Proxy root - Explicit height to avoid flex collapse */
+    /* Proxy root - Flex grow to fill space */
     #tmc_proxy_root {
-        flex: 0 0 auto !important;
-        height: calc(100dvh - 100px) !important;
+        flex: 1 1 auto !important;
         min-height: 0 !important;
         max-height: none !important;
         overflow-y: auto !important;
