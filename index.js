@@ -515,13 +515,24 @@
                 if (m.target.closest && m.target.closest('#tmc_proxy_root')) continue;
                 if (m.target.classList && m.target.classList.contains('tmc_proxy_block')) continue;
 
-                if (m.target.classList?.contains('select_chat_block_wrapper')) {
+                // Detect native chat blocks being added (async load)
+                if (m.target.id === 'select_chat_div' || m.target.classList?.contains('select_chat_block_wrapper')) {
                     needsSync = true;
                     break;
                 }
+                // Detect popup visibility changes
                 if (m.target.id === 'shadow_select_chat_popup' || m.target.id === 'select_chat_popup') {
                     needsSync = true;
                     break;
+                }
+                // Detect new blocks added anywhere in popup
+                if (m.addedNodes?.length > 0) {
+                    for (const node of m.addedNodes) {
+                        if (node.classList?.contains('select_chat_block')) {
+                            needsSync = true;
+                            break;
+                        }
+                    }
                 }
             }
             if (needsSync) scheduleSync();
@@ -543,12 +554,16 @@
 
         ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, scheduleSync);
 
-        // Faster heartbeat
+        // Heartbeat: check for empty folders or missing proxy root
         setInterval(() => {
             const popup = document.querySelector('#shadow_select_chat_popup') || document.querySelector('#select_chat_popup');
             if (popup && getComputedStyle(popup).display !== 'none') {
                 const proxy = popup.querySelector('#tmc_proxy_root');
-                if (!proxy || proxy.children.length === 0) {
+                const nativeBlocks = popup.querySelectorAll('.select_chat_block:not(.tmc_proxy_block)');
+                const proxyBlocks = popup.querySelectorAll('.tmc_proxy_block');
+
+                // Re-sync if: no proxy root, or native blocks exist but no proxy blocks
+                if (!proxy || proxy.children.length === 0 || (nativeBlocks.length > 0 && proxyBlocks.length === 0)) {
                     scheduleSync();
                 }
             }
