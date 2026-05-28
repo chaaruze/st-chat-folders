@@ -499,6 +499,15 @@
     border: 1px solid var(--SmartThemeBorderColor) !important;
 }
 
+.tmc_bulk_delete_btn {
+    background: rgba(220, 53, 69, 0.8) !important;
+    color: #fff !important;
+}
+
+.tmc_bulk_delete_btn:hover:not(:disabled) {
+    background: rgba(220, 53, 69, 1) !important;
+}
+
 .tmc_bulk_check {
     margin-right: 8px;
     font-size: 1.1em;

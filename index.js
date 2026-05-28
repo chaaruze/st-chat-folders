@@ -1090,6 +1090,7 @@
             <div class="tmc_bulk_info">${count} Selected</div>
             <div class="tmc_bulk_actions">
                 <button id="tmc_bulk_move" ${count === 0 ? 'disabled' : ''}><i class="fa-solid fa-folder-open"></i> Move</button>
+                <button id="tmc_bulk_delete" class="tmc_bulk_delete_btn" ${count === 0 ? 'disabled' : ''}><i class="fa-solid fa-trash"></i> Delete</button>
                 <button id="tmc_bulk_cancel">Cancel</button>
             </div>
         `;
@@ -1098,15 +1099,86 @@
 
         bar.querySelector('#tmc_bulk_move').onclick = (e) => {
             if (count === 0) return;
-            // Hacky: reuse render context menu logic but for bulk
-            // We pass a dummy event to position it center or just list folders
             showContextMenu(e, null, true); // true = bulk mode
         };
 
+        bar.querySelector('#tmc_bulk_delete').onclick = async (e) => {
+            if (count === 0) return;
+            const chatCount = selectedChats.size;
+            if (!confirm(`Delete ${chatCount} selected chat${chatCount !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+
+            const toDelete = Array.from(selectedChats);
+
+            // Resolve numeric character index (this_chid) from context
+            const context = SillyTavern.getContext();
+            const characterId = context.characterId; // numeric index into context.characters[]
+
+            if (characterId === undefined || characterId === null) {
+                toastr.error('Could not determine current character — cannot delete.');
+                return;
+            }
+
+            let deletedCount = 0;
+            let fallbackNeeded = false;
+
+            try {
+                // Import ST's own deleteCharacterChatByName — this uses getRequestHeaders() internally so CSRF tokens are handled correctly. fileName should not include .jsonl extension.
+                const { deleteCharacterChatByName } = await import('/script.js');
+
+                for (const fileName of toDelete) {
+                    try {
+                        // Strip .jsonl if present (ST function appends it internally)
+                        const cleanName = fileName.replace(/\.jsonl$/i, '');
+                        await deleteCharacterChatByName(characterId, cleanName);
+                        deletedCount++;
+                    } catch (err) {
+                        console.warn('[TMC] deleteCharacterChatByName failed for:', fileName, err);
+                    }
+                }
+            } catch (importErr) {
+                console.warn('[TMC] Could not import deleteCharacterChatByName, trying fallback:', importErr);
+                fallbackNeeded = true;
+            }
+
+            if (fallbackNeeded) {
+                // Fallback if direct call won't work for some reason, just in case. This forces to press delete many times, but still better than waiting for page reloads.
+                toastr.info('Using fallback deletion — you will be prompted once per chat.');
+                for (const fileName of toDelete) {
+                    const originalBlock = document.querySelector(`.select_chat_block[file_name="${fileName}"]:not(.tmc_proxy_block)`);
+                    const delBtn = originalBlock?.querySelector('.mes_delete') ||
+                        originalBlock?.querySelector('.fa-skull') ||
+                        originalBlock?.querySelector('[class*="delete"]');
+                    if (delBtn) {
+                        delBtn.click();
+                        deletedCount++;
+                        await new Promise(r => setTimeout(r, 80));
+                    }
+                }
+            }
+
+            // Clean up folder references for deleted chats
+            const settings = getSettings();
+            const characterIdKey = getCurrentCharacterId();
+            if (characterIdKey) {
+                const folderIds = settings.characterFolders[characterIdKey] || [];
+                for (const fid of folderIds) {
+                    const folder = settings.folders[fid];
+                    if (folder && folder.chats) {
+                        folder.chats = folder.chats.filter(f => !toDelete.includes(f));
+                    }
+                }
+                saveSettings();
+            }
+
+            if (deletedCount > 0 && !fallbackNeeded) {
+                toastr.success(`Deleted ${deletedCount} chat${deletedCount !== 1 ? 's' : ''}`);
+                scheduleSync();
+            }
+
+            clearSelection();
+        };
 
     }
-
-
 
     // ========== CONTEXT MENU ==========
 
